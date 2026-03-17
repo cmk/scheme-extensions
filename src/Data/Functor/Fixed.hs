@@ -73,7 +73,7 @@ unwrap = F.unwrapMu
 -- | Strict pair for streaming metamorphism accumulators
 -- and generalized recursion schemes.
 infix 2 :!:
-data Pair a b = a :!: b
+data Pair a b = !a :!: !b
     deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 instance Bifunctor Pair where
