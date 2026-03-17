@@ -26,8 +26,9 @@ library
   exposed-modules:
       Data.Functor.Foldable
       Data.Functor.Fixed
-      Data.Functor.Pattern
+      Data.Functor.Index
       Data.Functor.Kan
+      Data.Functor.Pattern
 
   default-language: Haskell2010
 
