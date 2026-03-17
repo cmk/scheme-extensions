@@ -1,0 +1,43 @@
+cabal-version: 2.0
+
+name:           scheme-extensions
+version:        0.0.1
+synopsis:       Recursion schemes, streaming metamorphisms, and Kan extension connections for data-fix.
+description:    Extended recursion scheme library built on data-fix's Mu/Fix/Nu types.
+                Provides paramorphisms, zygomorphisms, Elgot algebras, mutual recursion,
+                pre/postpromorphisms, generic streaming metamorphisms (Gibbons), Cons
+                pattern functor, and Kan extension connections (Day-based structural
+                comparison, Codensity/StateT isomorphisms, Yoneda hoist fusion).
+category:       Data, Recursion
+stability:      Experimental
+homepage:       https://github.com/cmk/scheme-extensions
+bug-reports:    https://github.com/cmk/scheme-extensions/issues
+author:         Chris McKinlay
+maintainer:     Chris McKinlay
+copyright:      2026 Chris McKinlay
+license:        BSD3
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/cmk/scheme-extensions
+
+library
+  exposed-modules:
+      Data.Functor.Foldable
+      Data.Functor.Fixed
+      Data.Functor.Pattern
+      Data.Functor.Kan
+
+  default-language: Haskell2010
+
+  hs-source-dirs:
+      src
+
+  ghc-options: -Wall
+
+  build-depends:
+      base               >= 4.16  && < 5.0
+    , data-fix           >= 0.3
+    , kan-extensions
+    , transformers
