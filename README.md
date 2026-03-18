@@ -1,3 +1,5 @@
+[![CI](https://github.com/cmk/scheme-extensions/actions/workflows/ci.yml/badge.svg)](https://github.com/cmk/scheme-extensions/actions/workflows/ci.yml)
+
 # scheme-extensions
 
 Extended recursion schemes, streaming metamorphisms, and Kan
