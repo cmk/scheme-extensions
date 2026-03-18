@@ -28,7 +28,7 @@ jobs:
             ${{ runner.os }}-ghc-${{ matrix.ghc }}-cabal-
 
       - name: Build
-        run: cabal build all
+        run: cabal build all --enable-tests
 
       - name: Test
-        run: cabal test all
+        run: cabal test all --enable-tests
