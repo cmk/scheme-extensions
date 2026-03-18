@@ -93,9 +93,19 @@ cotransverse    :: (forall a. g (f a) -> f (g a)) -> g (Mu f) -> Mu f
 
 ### Streaming metamorphisms (Gibbons)
 
-Generic over the base functor and fixed-point type. Interleave
-production and consumption so output can be emitted before all
-input is consumed:
+#### Theory
+
+A **metamorphism** is a fold followed by an unfold. The streaming
+variants interleave accumulation (fold) and production (unfold)
+so that output can be emitted before all input is consumed. This
+avoids materializing the entire intermediate structure in memory.
+
+The core engine is `stream`, which at each step tries to *produce*
+output from the current state. If it can, it emits and continues.
+If not, it *consumes* the next input element via the accumulator.
+
+The functions are generic over both the base functor and the
+fixed-point type — the caller passes project/embed functions:
 
 ```haskell
 stream  :: Functor f => (i -> g i) -> (f o -> o) -> (state -> Maybe (f state)) -> (state -> ((state -> state) -> i -> o) -> g i -> o) -> state -> i -> o
@@ -103,12 +113,30 @@ astream :: Functor f => (i -> g i) -> (f o -> o) -> (state -> Maybe (f state)) -
 gstream :: Functor f => (i -> g i) -> (f o -> o) -> (state -> f state) -> (state -> Maybe (f state)) -> (g i -> Maybe (Pair (state -> state) i)) -> state -> i -> o
 ```
 
-The caller passes project/embed functions, choosing the fixed-point
-types for input and output:
+#### Example 1: identity stream
 
 ```haskell
-stream unwrap wrap process accum state input   -- Mu -> Mu
-stream unwrapNu wrapMu process accum state input  -- Nu -> Mu (lazy in, strict out)
+import Data.Functor.Fixed
+import Data.Functor.Foldable
+import Data.Functor.Pattern
+
+-- Stream that accumulates all input, then flushes:
+let flush = \case [] -> Nil; (a:as) -> Cons a as
+    result = fstream unwrap wrap flush (\acc b -> acc ++ [b]) flush [] input
+-- toList result == toList input
+```
+
+#### Example 2: element-wise transformation
+
+```haskell
+import Data.Functor.Fixed
+import Data.Functor.Foldable
+import Data.Functor.Pattern
+
+-- Stream that transforms each element by (+1):
+let flush = \case [] -> Nil; (a:as) -> Cons a as
+    result = fstream unwrap wrap flush (\acc b -> acc ++ [b + 1]) flush [] (fromList [1,2,3])
+-- toList result == [2,3,4]
 ```
 
 ### Data.Functor.Pattern
@@ -148,9 +176,18 @@ distAna, distCata, distTuple, distEither, seqEither
 ### Data.Functor.Kan
 
 Connections to
-[kan-extensions](https://hackage.haskell.org/package/kan-extensions):
+[kan-extensions](https://hackage.haskell.org/package/kan-extensions).
 
-**Day-based structural comparison:**
+#### Day convolution (structural comparison)
+
+##### Theory
+
+`Day f g a = exists b c. (f b, g c, b -> c -> a)` is the
+tensor product of two functors. When `f = g` and `a = Bool`,
+a `Day f f Bool` pairs up corresponding elements from two
+`f`-layers with a boolean combiner — exactly what structural
+equality needs. This is `Eq1`/`Ord1` decomposed into its
+Day components.
 
 ```haskell
 equalDay     :: (Foldable f, Eq1 f)  => Day f f Bool -> Bool
@@ -159,33 +196,123 @@ recursiveEq  :: (Functor f, Foldable f, Eq1 f)  => Mu f -> Mu f -> Bool
 recursiveOrd :: (Functor f, Foldable f, Ord1 f) => Mu f -> Mu f -> Ordering
 ```
 
-**Yoneda hoist fusion** — multiple `hoistMu` calls fuse into
-a single traversal:
+##### Example 1: comparing two lists
+
+```haskell
+import Data.Functor.Kan
+import Data.Functor.Pattern
+
+>>> recursiveEq (fromList [1,2,3 :: Int]) (fromList [1,2,3])
+True
+>>> recursiveEq (fromList [1,2,3 :: Int]) (fromList [1,2,4])
+False
+```
+
+##### Example 2: ordering via Day
+
+```haskell
+import Data.Functor.Kan
+import Data.Functor.Pattern
+
+>>> recursiveOrd (fromList [1,2,3 :: Int]) (fromList [1,2,4])
+LT
+>>> recursiveOrd (fromList [1,2,3 :: Int]) (fromList [1,2,3])
+EQ
+```
+
+#### Yoneda (hoist fusion)
+
+##### Theory
+
+Multiple `hoistMu` calls (natural transformations on `Mu`)
+each traverse the entire structure. `YonedaFix` accumulates
+transformations via O(1) function composition, paying the
+traversal cost once at `lowerYonedaFix`. This is the Yoneda
+lemma for the functor category `[Hask, Hask]`.
 
 ```haskell
 liftYonedaFix  :: Mu f -> YonedaFix f f
 mapYonedaFix   :: (forall a. g a -> h a) -> YonedaFix f g -> YonedaFix f h
 lowerYonedaFix :: YonedaFix f g -> Mu g
-
--- lowerYonedaFix . mapYonedaFix n3 . mapYonedaFix n2 . mapYonedaFix n1 . liftYonedaFix
--- = 1 traversal instead of 3
 ```
 
-**Codensity / State isomorphisms:**
+##### Example 1: fusing two transformations
+
+```haskell
+import Data.Functor.Kan
+import Data.Functor.Pattern
+import Data.Functor.Fixed
+
+let xs = fromList [1, 2, 3 :: Int]
+    inc Nil = Nil; inc (Cons a r) = Cons (a + 1) r
+    dbl Nil = Nil; dbl (Cons a r) = Cons (a * 2) r
+-- Two hoists = 2 traversals:
+    direct = hoistMu inc (hoistMu dbl xs)
+-- Via Yoneda = 1 traversal:
+    fused = lowerYonedaFix (mapYonedaFix inc (mapYonedaFix dbl (liftYonedaFix xs)))
+-- toList direct == toList fused == [3,5,7]
+```
+
+##### Example 2: identity fusion
+
+```haskell
+import Data.Functor.Kan
+import Data.Functor.Pattern
+
+let xs = fromList [1, 2, 3 :: Int]
+-- lowerYonedaFix . liftYonedaFix = id
+>>> toList (lowerYonedaFix (liftYonedaFix xs))
+[1,2,3]
+```
+
+#### Codensity / State isomorphisms
+
+##### Theory
+
+`Codensity m a = forall b. (a -> m b) -> m b` is the CPS
+transform of a monad. For representable functors, Codensity
+collapses to the State monad:
+
+```
+Codensity ((->) m)              ≅  State  m
+Codensity (Compose ((->) m) n)  ≅  StateT m n
+```
+
+More generally, for any `Representable u` with `Rep u = r`:
+`Codensity (Compose u n) ≅ StateT r n`.
 
 ```haskell
 codensityToState  :: Codensity ((->) m) a -> m -> (a, m)
 stateToCodensity  :: (m -> (a, m)) -> Codensity ((->) m) a
-
--- Higher-kinded: Codensity (Compose ((->) m) n) ≅ StateT m n
 codensityToStateT :: Monad n => Codensity (Compose ((->) m) n) a -> StateT m n a
 stateTToCodensity :: Monad n => StateT m n a -> Codensity (Compose ((->) m) n) a
 ```
 
-For any `Representable u` with `Rep u = r`:
-`Codensity (Compose u n) ≅ StateT r n`.
+##### Example 1: State round-trip
 
-**Re-exports** from kan-extensions: `Day`, `Yoneda`, `Codensity`,
+```haskell
+import Data.Functor.Kan
+
+>>> codensityToState (Codensity (\k m -> k (m + 1) (m * 2))) (10 :: Int)
+(11,20)
+>>> codensityToState (stateToCodensity (\m -> (m + 1, m * 2))) (10 :: Int)
+(11,20)
+```
+
+##### Example 2: StateT round-trip
+
+```haskell
+import Data.Functor.Kan
+import Control.Monad.Trans.State.Strict
+
+let st = StateT $ \m -> Just (m + 1, m * 2) :: StateT Int Maybe Int
+>>> runStateT (codensityToStateT (stateTToCodensity st)) 10
+Just (11,20)
+```
+
+#### Re-exports
+
+From kan-extensions: `Day`, `Yoneda`, `Codensity`,
 `Ran`, `Lan`, `Density`, `Curried`,
 `codensityToComposedRep`/`composedRepToCodensity`.
 
