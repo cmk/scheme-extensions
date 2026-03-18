@@ -66,9 +66,9 @@ foldWithContext  :: (f (Mu f, a) -> a) -> Mu f -> a
 foldWithAux     :: (f b -> b) -> (f (b, a) -> a) -> Mu f -> a
 
 -- Generalized (via distributive laws)
-foldGen         :: ... -> Mu f -> b                            -- gcata
-unfoldGen       :: ... -> b -> Mu f                            -- gana
-refoldGen       :: ... -> r -> b                               -- ghylo
+foldGen         :: Functor f => Distribute f (Pair c) -> GAlgebra (Pair c) f b -> Mu f -> b
+unfoldGen       :: (Functor f, Functor n, Monad n) => Distribute n f -> GCoalgebra n f b -> b -> Mu f
+refoldGen       :: (Functor f, Functor n, Monad n) => Distribute f (Pair c) -> Distribute n f -> GAlgebra (Pair c) f b -> GCoalgebra n f r -> r -> b
 
 -- Monadic
 foldM           :: (Traversable f, Monad m) => (f a -> m a) -> Mu f -> m a
@@ -83,8 +83,8 @@ mutu            :: (f (Pair c b) -> b) -> (f (Pair b c) -> c) -> Mu f -> c
 comutu          :: (b -> f (Either r b)) -> (r -> f (Either b r)) -> r -> Mu f
 
 -- Natural transformations
-comap           :: (Bifunctor f, ...) => (a -> b) -> Mu (f a) -> Mu (f b)
-contramap       :: (Bifunctor f, ...) => (a -> b) -> Mu (f a) -> Mu (f b)
+comap           :: (Bifunctor f, Functor (f a), Functor (f b)) => (a -> b) -> Mu (f a) -> Mu (f b)
+contramap       :: (Bifunctor f, Functor (f a), Functor (f b)) => (a -> b) -> Mu (f a) -> Mu (f b)
 prepro          :: (forall a. f a -> f a) -> (f c -> c) -> Mu f -> c
 postpro         :: (forall a. f a -> f a) -> (r -> f r) -> r -> Mu f
 transverse      :: (forall a. f (g a) -> g (f a)) -> Mu f -> g (Mu f)
@@ -98,17 +98,17 @@ production and consumption so output can be emitted before all
 input is consumed:
 
 ```haskell
-stream  :: Functor f => (i -> g i) -> (f o -> o) -> ... -> state -> i -> o
-astream :: Functor f => (i -> g i) -> (f o -> o) -> ... -> state -> i -> o
-gstream :: Functor f => (i -> g i) -> (f o -> o) -> ... -> state -> i -> o
+stream  :: Functor f => (i -> g i) -> (f o -> o) -> (state -> Maybe (f state)) -> (state -> ((state -> state) -> i -> o) -> g i -> o) -> state -> i -> o
+astream :: Functor f => (i -> g i) -> (f o -> o) -> (state -> Maybe (f state)) -> (g i -> Pair (state -> state) i) -> state -> i -> o
+gstream :: Functor f => (i -> g i) -> (f o -> o) -> (state -> f state) -> (state -> Maybe (f state)) -> (g i -> Maybe (Pair (state -> state) i)) -> state -> i -> o
 ```
 
 The caller passes project/embed functions, choosing the fixed-point
 types for input and output:
 
 ```haskell
-stream unwrap wrap ...       -- Mu -> Mu
-stream unwrapNu wrapMu ...   -- Nu -> Mu (lazy in, strict out)
+stream unwrap wrap process accum state input   -- Mu -> Mu
+stream unwrapNu wrapMu process accum state input  -- Nu -> Mu (lazy in, strict out)
 ```
 
 ### Data.Functor.Pattern
@@ -125,7 +125,7 @@ internally.
 
 ```haskell
 -- Cons-specialized streaming
-fstream  :: (i -> Cons b i) -> (Cons a o -> o) -> ... -> state -> i -> o
+fstream  :: (i -> Cons b i) -> (Cons a o -> o) -> (state -> Cons a state) -> (state -> b -> state) -> (state -> Cons a state) -> state -> i -> o
 
 -- List conversion
 toList   :: Mu (Cons a) -> [a]
