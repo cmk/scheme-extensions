@@ -91,6 +91,25 @@ data I64
     deriving (Eq, Ord, Show, Read, Enum, Bounded, Generic)
 
 ---------------------------------------------------------------------
+-- Semigroup / Monoid (min-based)
+---------------------------------------------------------------------
+
+instance Semigroup I4 where (<>) = min
+instance Monoid I4 where mempty = minBound
+
+instance Semigroup I8 where (<>) = min
+instance Monoid I8 where mempty = minBound
+
+instance Semigroup I16 where (<>) = min
+instance Monoid I16 where mempty = minBound
+
+instance Semigroup I32 where (<>) = min
+instance Monoid I32 where mempty = minBound
+
+instance Semigroup I64 where (<>) = min
+instance Monoid I64 where mempty = minBound
+
+---------------------------------------------------------------------
 -- Word ≅ (IN -> Bool) isos
 ---------------------------------------------------------------------
 
